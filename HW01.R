@@ -46,15 +46,17 @@ ggsave("pixelFigure.jpg",plot = pixelFigure)
 # linear Regression
 mod1 <- lm( V1 ~ . , data= ziptrain27)
 regResults<-summary(mod1)
+mod1$fitted.values
 plot(mod1)
 plot(regResults$residuals)
 stdResid<-scale(regResults$residuals,center = T,scale = T)
-ggplot(data=as.data.frame(stdResid), aes(y=stdResid,x=1:length(stdResid)))+
+fittedValues<-mod1$fitted.values
+ggplot(data=as.data.frame(stdResid,fittedValues), aes(y=stdResid,x=fittedValues))+
   geom_point(color="black")+
-  labs(x="Order",y="Std Residuals",title = "Residuals")+
+  labs(x="Fitted Values",y="Std. Residuals",title = "Residuals")+
   geom_hline(yintercept = 0,linetype="dashed",colour="red")+
   theme(plot.title=element_text(face = "bold"))
-ggsave("LRResidual.jpg",plot = last_plot())
+ggsave("LRFittedResidual.jpg",plot = last_plot())
 
 
 pred1.train <- predict.lm(mod1, ziptrain27[,-1])
