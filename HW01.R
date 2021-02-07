@@ -164,3 +164,4 @@ pixelFigure
 ggsave("KNN5 Miss.jpg",plot = pixelFigure)
 
 
+
