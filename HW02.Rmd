@@ -1,0 +1,43 @@
+---
+title: "HW02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+     Body fat is necessary to maintain life and reproductive functions. It is reasonable to admit that we all get frightened by the word fat. That is because we have been given the information that adverse effects that can cause of the fat content in the body. If we formalize the body fat content, it is often refers to the percentage of fat content in one's body with respect to the body mass. With the advancement in the technology there are several ways to calculate the body fat content. But most accurate method of estimating body fat percentage was to measure that person's average density (total mass divided by total volume) and apply a formula to convert that to body fat percentage. The person average density is often calculated using the old and yet precise method called Underwater weighing, where it is measured by completely submerging a person in water and calculating the volume of the displaced water from the weight of the displaced water. Once you have average body density($\rho$) then one can use two formulas to calculate the body fat content. The formulas are,
+     
+     Brozek formula: $BF=(4.57 / \rho-4.142) \times 100$
+     
+     Siri formula is: $BF=(4.95 / \rho-4.50) \times 100$.
+     
+     
+    The dataset given here consist of 18 variables measured and calculated from 252 men. Among those 16 of them are body related measurements. such as height, weight, density and so on. The remaining two are body Brozek and Siri. Our task is identify the necessary variables that would explain the body fat content. simply put, what is relationship between those variables and body fat content. 
+
+```{r data, echo=FALSE}
+  fat <- read.table(file = "fat.csv", sep=",", header=TRUE)
+  n = dim(fat)[1] ### total number of observations
+  n1 = round(n/10) ### number of observations randomly selected for testing data
+  
+  set.seed(06) ### set the seed for randomization
+  flag = sort(sample(1:n, n1))
+  flag = c(1, 21, 22, 57, 70, 88, 91, 94, 121, 127, 149, 151, 159, 162,
+           164, 177, 179, 194, 206, 214, 215, 221, 240, 241, 243);
+  fat1train = fat[-flag,] 
+  fat1test = fat[flag,]
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

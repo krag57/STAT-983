@@ -1,0 +1,523 @@
+
+
+
+#### Example 2: Prostate Cancer         
+
+# Read the data 
+
+
+prostate <- read.table("prostate.csv", header= TRUE, sep = ",")
+
+
+
+# plot for possible collinrarity?
+ 
+library(lattice)
+splom(prostate[,1:9], pscales = 0)
+
+## outliers?
+par(mfrow = c(3,3))
+for (i in 1:9) boxplot(prostate[,i], xlab=names(prostate)[i])
+
+### split the training + test data 
+#prostate[,1:8] <- scale(prostate[,1:8], TRUE, TRUE); 
+
+training <- subset( prostate, train == TRUE)[,1:9];
+test     <- subset( prostate, train == FALSE)[,1:9];
+
+
+##
+summary(training)
+
+# The corrlation table (the last column is Y)
+cor(training); 
+
+round(cor(training),2);
+
+
+
+# Fit a linear regression on the training data
+model0 <- lm( lpsa ~ ., data = training); 
+summary(model0); 
+
+## The p-value for the F-statistic is very small, R^2 value OK 
+##    but several of individual predictors are not significant.
+
+
+
+## There are several large pairwise correlation both between predictors
+##   and between predictors and the response (lpsa). 
+
+
+#### Check the eigen-decomposition to find condition numbers 
+#### Two ways. The first approach:
+X <- model.matrix(model0);
+eign1 <- eigen( t(X) %*% X); 
+round(eign1$val,2)
+
+#[1] 346664.52  45004.69    144.15    122.06     40.12     28.77     12.79
+#[8]      5.45      0.21
+
+sqrt( eign1$val[1] / eign1$val)
+#[1]    1.000000    2.775401   49.039601   53.292500   92.950786  109.779348
+#[7]  164.661096  252.301603 1294.157997
+
+### Or equivalent approach
+##  the second way is to Use Singular Value Decompisition to find condition numbers 
+xsvd = svd(X); 
+xsvd$d;
+xsvd$d[1]/xsvd$d
+
+
+###### Now check variance inflation factors (VIF)
+VIF1 <- NULL;
+X <- model.matrix(model0);
+for (i in 2:9) VIF1 <- cbind(VIF1, 1/(1-summary(lm(X[,i] ~ X[,-i]))$r.squared)); 
+colnames(VIF1) <- colnames(training)[1:8]
+VIF1
+
+#       lcavol  lweight      age     lbph      svi      lcp gleason    pgg45
+#[1,] 2.318496 1.472295 1.356604 1.383429 2.045313 3.117451 2.64448 3.313288
+
+sqrt(VIF1)
+## In this example, VIF is moderate in size (VIF=1 for orthogonal predictors)
+
+
+### Another way to see whether the estiamtes are stable or not (due to collinearity)
+###  We can assume that the response "lpsa" is difficult to observe accurately
+###       and we add a random perturbation of SD  0.1 ( compare to 0.7123)
+###                    to each of 67 training data
+
+set.seed(05302014);
+model0a <- lm(lpsa + 0.1*rnorm(67) ~ ., data= training); 
+summary(model0a);
+
+## Compare two models, R^2 and \sigma\hat are similar
+c(summary(model0a)$r.squared, summary(model0)$r.squared)
+#[1] 0.6987397 0.6943712
+c(summary(model0a)$sig, summary(model0)$sigma)
+#[1] 0.7175067 0.7122861
+
+cbind(coef(model0a), coef(model0))
+### However,  much larger changes in the coefficients (say gleason) indicating
+### their sensitivity to responses caused by collinearity 
+
+
+### One way to cure collinearity is to drop some variables.
+
+## Look at correlation again; "lcavol" is correlated to "svi" "lcp"
+###            "lcp"  is highly correlated to "lcavol", "svi", "pgg45"
+               "gleason" is highly correlated to "pgg45", etc.
+round(cor(training[,1:8]),2)  
+ 
+round(cor(training[,]),2)
+## Let us say drop "gleason"  
+model0b <- lm(lpsa ~ . - gleason, data= training); 
+
+## Compare to original model, R^2 and \sigma\hat are similar
+c(summary(model0b)$r.squared, summary(model0)$r.squared)
+#[1] 0.6942578 0.6943712
+c(summary(model0b)$sig, summary(model0)$sigma)
+#0.7063549 0.7122861
+## Similar performance and fewer predictors are used!
+
+### If you must keep all your variables in the model
+###  Then you should consider alternative methods of estimation such as Ridge.
+
+
+
+
+
+#### R code for Building Models
+## Performance on the training and test data
+
+
+## Data Set
+prostate <- read.table("prostate.csv", header= TRUE, sep = ",")
+
+training <- subset( prostate, train == TRUE)[,1:9];
+test     <- subset( prostate, train == FALSE)[,1:9];
+ytrue    <- test$lpsa; 
+
+### (i) Linea regression with all predictors (Full Model)
+# Fit a linear regression on the training data
+model1 <- lm( lpsa ~ ., data = training); 
+MSE1mod1 <-   mean( (resid(model1) )^2) 
+# testign error 
+pred1a <- predict(model1, test[,1:8]);
+MSE2mod1 <-   mean((pred1a - ytrue)^2);
+#[1] 0.521274
+
+### (ii) Linea regression with the best subset model 
+library(leaps);
+prostate.leaps <- regsubsets(lpsa ~ ., data= training, nbest= 100, really.big= TRUE); 
+prostate.models <- summary(prostate.leaps)$which;
+prostate.models.size <- as.numeric(attr(prostate.models, "dimnames")[[1]]);
+prostate.models.rss <- summary(prostate.leaps)$rss;
+plot(prostate.models.size, prostate.models.rss); 
+
+# add the best subset and results for the only intercept model
+
+prostate.models.best.rss <- tapply(prostate.models.rss, prostate.models.size, min); 
+prostate.model0 <- lm( lpsa ~ 1, data = training); 
+prostate.models.best.rss <- c( sum(resid(prostate.model0)^2), prostate.models.best.rss); 
+
+plot( 0:8, prostate.models.best.rss, type = "b", col= "red", xlab="Subset Size k", ylab="Residual Sum-of-Square")
+points(prostate.models.size, prostate.models.rss)
+
+
+## What is the best subset with k=3
+
+op2 <- which(prostate.models.size == 3); 
+flag2 <- op2[which.min(prostate.models.rss[op2])]; 
+
+## Manual look at the selected model
+prostate.models[flag2,]
+model2 <- lm( lpsa ~ lcavol + lweight + svi, data = training)
+
+## Auto-find the best subset with k=3
+mod2selectedmodel <- prostate.models[flag2,]; 
+mod2Xname <- paste(names(mod2selectedmodel)[mod2selectedmodel][-1], collapse="+"); 
+mod2form <- paste ("lpsa ~", mod2Xname);
+model2 <- lm( as.formula(mod2form), data= training); 
+
+# traning and testing errors 
+summary(model2);
+MSE1mod2 <- mean(resid(model2)^2);
+pred2 <- predict(model2, test[,1:8]);
+MSE2mod2 <-   mean((pred2 - ytrue)^2);
+##[1] 0.4005308
+
+
+
+(iii) Linea regression with the variables (stepwise) selected
+
+## one way is manual: backward elimination & drop the least significant until all p-value <= 5%. 
+summary(lm( lpsa ~ . - gleason - age - lcp - pgg45 - lbph - svi, data = training)) 
+
+## The other way is to use "step()" function based on the AIC criterion
+## we need to use the full model first
+
+model1 <- lm( lpsa ~ ., data = training); 
+model3  <- step(model1); 
+
+## see the coefficents of \beta of model3
+round(coef(model3),3)
+summary(model3)
+
+## 
+# traning and testing errors 
+MSE1mod3 <- mean(resid(model3)^2);
+pred3 <- predict(model3, test[,1:8]);
+MSE2mod3 <-   mean((pred3 - ytrue)^2);
+#[1] 0.5165135
+
+
+### (iv) Ridge regression (MASS: lm.ridge, mda: gen.ridge)
+
+library(MASS);
+prostate.ridge <- lm.ridge( lpsa ~ ., data = training, lambda= seq(0,100,0.01));
+plot(prostate.ridge) 
+### Or try "matplot" to plot the columns of one matrix against the columns of another
+matplot(prostate.ridge$lambda, t(prostate.ridge$coef), type="l", lty=1, 
+   xlab=expression(lambda), ylab=expression(hat(beta)))
+
+## (a) manually find the optimal lambda value
+select(prostate.ridge)
+## 
+#modified HKB estimator is 3.355691 
+#modified L-W estimator is 3.050708 
+# smallest value of GCV  at 4.92 
+
+## the search region of lambda can be different with different step size!!!
+##   in some applications step size = 0.01 might be too crude.
+prostate.ridge2 <- lm.ridge( lpsa ~ ., data = training, lambda= seq(0,10,0.001));
+select(prostate.ridge2)
+
+# Using lambda = 4.92, we can get the best model:
+abline(v=4.92)
+
+### Compare the ceofficients of ridge regression vs. linear regression
+##           on the scaled data set
+prostate.ridge$coef[, which(prostate.ridge$lambda == 4.92)]
+prostate.ridge$coef[, which(prostate.ridge$lambda == 0)]
+
+## (b) Auto-find the optimal lambda value
+lambdaopt <- which.min(prostate.ridge$GCV); 
+
+### if you want to see the coefficient of ridge on the original, raw data scale
+mod4.coef <- coef(prostate.ridge)[lambdaopt,]
+round(mod4.coef, 4)
+
+### There are three ways for prediction in Ridge
+### Here is a (little more complicated?) way from the scaled coefficients
+### 
+
+## The coefficient of ridge on the scaled data
+rig1coef <- prostate.ridge$coef[,lambdaopt];
+## find the intercepts using ybar and xbar from training data
+rig1intercepts <- prostate.ridge$ym - sum(prostate.ridge$xm * (rig1coef / prostate.ridge$scales)); 
+
+pred4 <- scale(test[,1:8], center = F, scale = prostate.ridge$scales)%*%  rig1coef + rig1intercepts;
+MSE2mod4 <- mean( (pred4 - ytrue)^2);
+MSE2mod4
+##[1] 0.4943582
+
+
+
+######### previous R code for Ridge regression######
+### Remark: the tricks to get coefficients for Ridge Regression
+### A comparison of coef(obj) and obj$coef 
+### 
+## (i) original scale
+coef(prostate.ridge)[1,] 
+
+## (ii)  new scale with "X-scaled" and "Y-centered"
+prostate.ridge$coef[,1]  
+## Using the new scale to transfer back the original scale
+##     without intercept
+prostate.ridge$coef[,1] / prostate.ridge$scales
+
+### There are two more other ways for prediction with the optimal \lambda
+### (1) use coef(obj) at original data scale
+###    Fitted value with ridge \lambda = 4.92 
+
+lamdba1 <- 4.92;
+## or auto-setting;
+lambda1 <- as.numeric(names(lambdaopt));
+
+ridge.coef1 <- coef(prostate.ridge)[which(prostate.ridge$lambda == lambda1),]
+
+## Performance on the training data
+pred4training <- as.vector(as.matrix(cbind(1, training[,1:8])) %*% ridge.coef1);
+MSE1mod4 <-  mean((pred4training - training$lpsa)^2); 
+print(MSE1mod4)
+# 0.4473565  (#0.4391998 for OLS)
+## Performance on the testing data
+pred4testbb <- as.vector(as.matrix(cbind(1, test[,1:8])) %*% ridge.coef1);
+MSE2mod4bb <-  mean((pred4testbb - ytrue)^2); 
+print(MSE2mod4bb)
+# [1] 0.4943582, which is the same above 
+
+
+### (2) Use obj$coef with optimal \lambda
+prostate.ridge <- lm.ridge( lpsa ~ ., data = training, lambda= seq(0,100,0.01));
+indexopt <-  which.min(prostate.ridge$GCV);  
+
+## when we use obj$coef, we first need to denormize the coefficients
+##   and then find the interecept (based on the training data only)
+## 
+## intercept = -sum( prostate.ridge$coef[,indexopt] * colMeans(training[,1:8] ) / prostate.ridge$scales) + mean(training[,9]);
+
+ridge.coeffs = prostate.ridge$coef[,indexopt]/ prostate.ridge$scales;
+intercept = -sum( ridge.coeffs  * colMeans(training[,1:8] )  )+ mean(training[,9]);
+
+## prediction of training and testing data
+pred4trainingcc = as.matrix( training[,1:8]) %*% as.vector(ridge.coeffs) + intercept;
+pred4testcc = as.vector( as.matrix( test[,1:8]) %*% as.vector(ridge.coeffs) + intercept);
+
+
+### compare this with the previous approach "pred4training"
+### We should have the same answers
+pred4training[1:10]
+pred4trainingcc[1:10]
+mean((pred4testcc - ytrue)^2); 
+## 0.4943582, which is the same above 
+
+### Again, these two approaches should lead to the same prediction for testing data
+## Performance on the testing data
+
+MSE2mod4 <-  mean((pred4 - ytrue)^2);
+print(MSE2mod4)
+# 0.4943582 for lambda=4.92  (#0.521274 for OLS)
+
+
+
+
+## V. LASSO 
+## IMPORTANT: You need to install the R package "lars" beforehand
+##
+library(lars)
+prostate.lars <- lars( as.matrix(training[,1:8]), training[,9], type= "lasso", trace= TRUE); 
+plot(prostate.lars)
+
+## select the path with the smallest Cp 
+Cp1  <- summary(prostate.lars)$Cp;
+index1 <- which.min(Cp1);
+
+## Three ways to get beta values
+coef(prostate.lars)[index1,]
+prostate.lars$beta[index1,]
+
+lasso.lambda <- prostate.lars$lambda[index1]
+coef.lars1 <- predict(prostate.lars, s=lasso.lambda, type="coef", mode="lambda")
+coef.lars1$coef
+
+## Fitted value
+## training error for lasso
+fit5 <- predict(prostate.lars, as.matrix(training[,1:8]), s=lasso.lambda, type="fit", mode="lambda");
+yhat5 <- fit5$fit; 
+MSE1mod5 <- mean( (yhat5 - training$lpsa)^2);  
+MSE1mod5;
+
+## 0.4398267  training error for lasso 
+### test error for lasso 
+
+fit5b <- predict(prostate.lars, as.matrix(test[,1:8]), s=lasso.lambda, type="fit", mode="lambda");
+yhat5b <- fit5b$fit; 
+MSE2mod5 <- mean( (yhat5b - test$lpsa)^2); 
+MSE2mod5;
+## 0.5074249  test error for lasso
+
+#play with codes
+coef.lars(prostate.lars, s=lasso.lambda, mode="lambda")
+names(prostate.lars);
+
+
+## Compare MSE for OLS, Ridge and LASSO
+## Traning + Testing data
+c(MSE1mod1, MSE1mod2, MSE1mod3, MSE1mod4, MSE1mod5 )
+c(MSE2mod1, MSE2mod2, MSE2mod3, MSE2mod4, MSE2mod5)
+
+## Training erros
+#[1] 0.4391998 0.5210112 0.4393627 0.4473565 0.4398267
+## testing errors
+#[1] 0.5212740 0.4005308 0.5165135 0.4943582 0.5074249
+
+
+
+#### VI. Principal Component Regression
+
+
+## First, some fun plots for Principal Component Analysis (PCA)
+## PCA of training data
+trainpca <- prcomp(training[,1:8]);  
+
+## Examine the square root of eigenvalues
+## Most variation in the predictors can be explained 
+## in the first a few dimensions
+trainpca$sdev
+round(trainpca$sdev,2)
+
+### Eigenvectors are in oj$rotation
+### the dim of vectors is 8
+###
+matplot(1:8, trainpca$rot[,1:3], type ="l", xlab="", ylab="")
+matplot(1:8, trainpca$rot[,1:5], type ="l", xlab="", ylab="")
+
+## Choose a number beyond which all e. values are relatively small 
+plot(trainpca$sdev,type="l", ylab="SD of PC", xlab="PC number")
+
+
+## For instance, we want to do Regression on the first 4 PCs
+## Get Pcs from obj$x
+modelpca <- lm(lpsa ~ trainpca$x[,1:4], data = training)
+
+## The PCA on \beta for the original model Y=X\beta + epsilon
+## since Y= Z\gamma = (X U) \gamma = X(U\gamma)
+beta.pca <- trainpca$rot[,1:4] %*% modelpca$coef[-1]; 
+
+##as a comparion of \beta for PCA, OLS, Ridge and LASSO
+##   without intercepts, all on the original data scale
+cbind(beta.pca, coef(model1)[-1], ridge.coef1[-1],  coef.lars1$coef)
+
+
+### Second, Prediciton for PCA
+### a. Manual Method. We need to first standardize the X
+### For any new data X, we need to impose the center as in the training data
+###  This requires us to subtract the column mean of training from the test data
+xmean <- apply(training[,1:8], 2, mean); 
+xtesttransform <- as.matrix(sweep(test[,1:8], 2, xmean)); 
+
+## New test X on the four PCs
+xtestPC <-  xtesttransform %*% trainpca$rot[,1:4]; 
+
+## Predicted Y
+ypred6 <- cbind(1, xtestPC) %*% modelpca$coef;  
+
+#### b. auto-use "predict()" function directly 
+###       by the "pcr" function in the "pls" library 
+###       You need to first install the R package "pls" below
+library(pls)
+prostate.pca <- pcr(lpsa~., data=training, validation="CV");
+## now predition 
+ypred6b <- predict(prostate.pca, ncomp = 4, newdata = test[1:8]); 
+## compare these two methods, which should get same results
+cbind(ypred6b, ypred6)
+
+### test error for PCA 
+MSE2mod6 <- mean( (ypred6 - test$lpsa)^2); 
+MSE2mod6; 
+## [1] 0.5851333
+## testing errors > c(MSE2mod1, MSE2mod2, MSE2mod3, MSE2mod4, MSE2mod5)
+#[1] 0.5212740 0.4005308 0.5165135 0.4943582 0.5074249
+
+
+## In practice, one must choose the number of PC carefully.
+##   Use validation dataset to choose it. Or CV
+## CV -- default; divide the data into 10 parts 
+
+## You need to first install the R package "pls" below
+##
+library(pls)
+prostate.pca <- pcr(lpsa~., data=training, validation="CV");  
+validationplot(prostate.pca);
+summary(prostate.pca); 
+## The minimum occurs at 8 components
+## so for this dataset, maybe we should use full data
+
+
+### How to auto-select # of components
+##     auto-run PCR? 
+##     based on the cross-validation
+
+prostate.pca <- pcr(lpsa~., data=training, validation="CV"); 
+
+## choose the optimal # of components 
+ncompopt <- which.min(prostate.pca$validation$adj);
+
+ypred6a <- predict(prostate.pca, ncomp = ncompopt, newdata = training[1:8]); 
+MSE1mod6 <- mean( (ypred6a - training$lpsa)^2); 
+ypred6bb <- predict(prostate.pca, ncomp = ncompopt, newdata = test[1:8]); 
+MSE2mod6 <- mean( (ypred6bb - test$lpsa)^2); 
+## In this case ncompopt = 8, and PCR reduces to the full model!!!
+
+
+### VII. Partial Least Squares
+
+prostate.pls <- plsr(lpsa ~ ., data = training, validation="CV");
+
+## Let us determine the performance on the training set 
+##          for the 6-component model
+
+ypred7 <- predict(prostate.pls, ncomp=6);
+MSE1mod7a <- mean( (ypred7 - training$lpsa)^2); 
+MSE1mod7a 
+##[1] 0.444154
+
+## Of course, the performance on the testing data is more important
+## We also need to center the test data set
+
+ypred7b <- predict(prostate.pls, test[,1:8], ncomp=6); 
+MSE2mod7ba <- mean( (ypred7b - test$lpsa)^2); 
+MSE2mod7ba ###[1] 0.5425213
+
+
+### How to auto-select # of components of PLS? 
+prostate.pls <- plsr(lpsa ~ ., data = training, validation="CV");
+## The opt # of components, it turns out to be 8 for this dataset,
+##       and thus PLS also reduces to the full model!!!    
+prostate.pls <- plsr(lpsa ~ ., data = training, validation="CV");
+
+## choose the optimal # of components  
+mod7ncompopt <- which.min(prostate.pls$validation$adj);
+
+ypred7bb <- predict(prostate.pls, ncomp = mod7ncompopt, newdata = test[1:8]); 
+MSE2mod7 <- mean( (ypred7bb - test$lpsa)^2); 
+
+
+## Testign errors of 7 methods
+c(MSE2mod1, MSE2mod2, MSE2mod3, MSE2mod4, MSE2mod5, MSE2mod6, MSE2mod7)
+##[1] 0.5212740 0.4005308 0.5165135 0.4943582 0.5074249 0.5212740 0.5212740
+## For this dataset, PCR and PLS reduce to the full model!!!
+
