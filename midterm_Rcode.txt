@@ -1,0 +1,61 @@
+
+##### Some R codes for take-home midterm of STAT 983
+#####
+
+### Read Training Data
+midtermtrain <- read.table(file = "midtermtrain.csv", sep=",");
+
+dim(midtermtrain);
+## dim=2911x202 
+## The first two columns are X1 and X2 values, and the last 200 columns are the Y values
+
+
+### Some example plots for exploratory data analysis
+### please add more exploratory analysis 
+X1 <- midtermtrain[,1];
+X2 <- midtermtrain[,2];
+
+## note that muhat = E(Y) and Vhat = 100*Var(Y)
+##
+muhat <- apply(midtermtrain[,3:202], 1, mean);
+Vhat  <- 100*apply(midtermtrain[,3:202], 1, var);
+
+## we can plot 4 graphs in a single plot
+par(mfrow = c(2, 2));
+plot(X1, muhat); 
+plot(X2, muhat); 
+plot(X1, Vhat); 
+plot(X2, Vhat);
+
+
+## Or you can first create an initial plot of one line
+##         and then iteratively add the lines
+##
+##   below is an example to plot X1 vs. muhat for different X2 values
+##
+
+## let us reset the plot
+dev.off()
+## now plot the lines one by one for each fixed X2
+data0 = data.frame(X1 = X1, X2=X2, muhat = muhat, Vhat = Vhat);
+flag <- which(data0$X2 == 0);
+plot(data0[flag,1], data0[flag, 3], type="l",
+     xlim=range(data0$X1), ylim=range(data0$muhat), xlab="X1", ylab="muhat");
+for (j in 1:40){
+  flag <- which(data0$X2 == 0.1*j);
+  lines(data0[flag,1], data0[flag, 3]);
+}
+
+## You can also plot X2 vs muhat for different X1 values
+##       and plot (X1 or X2) versus Vhat
+
+
+## Testing Data
+
+midtermtest  <- read.table(file = "midtermtest.csv", sep=",");
+dim(midtermtest)
+## This should be a 1066*2 matrix
+
+## In your final answers, please add two columns for your estimation of 
+##     $mu(X1,X2)=E(Y)$ and $V(X1, X2)=100*Var(Y)$ for the Y variable. 
+## Please save your predictions as a 1066*4 data matrix in a .csv file without headers.  
