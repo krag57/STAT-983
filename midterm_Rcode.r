@@ -220,7 +220,7 @@ var(prerf2)
 
 ### Output is written to a file
 write.table(Results, "results.csv", row.names=F, col.names=F, sep=",")
-
+print(rfFit$finalModel)
 
 
 
