@@ -1,0 +1,5 @@
+"","displacement","horsepower","weight","acceleration"
+"displacement",1,0.9,0.93,-0.54
+"horsepower",0.9,1,0.86,-0.69
+"weight",0.93,0.86,1,-0.42
+"acceleration",-0.54,-0.69,-0.42,1
